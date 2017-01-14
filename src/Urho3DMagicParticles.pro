@@ -119,7 +119,6 @@ HEADERS += \
 
 
 SOURCES += \
-    main.cpp \
     MagicParticleEffect.cpp \
     MagicParticleEmitter.cpp \
     main.cpp
