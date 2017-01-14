@@ -1,0 +1,10 @@
+*.pro.user
+
+src/bin/CoreData/Shaders/GLSL/MagicParticles/PIXEL_SHADER*.glsl
+src/bin/CoreData/Shaders/GLSL/MagicParticles/VERTEX_SHADER*.glsl
+
+*.log
+src/bin/Urho3DMagicParticles
+src/bin/Urho3DMagicParticles.exe
+libmagic3d.so
+build*
