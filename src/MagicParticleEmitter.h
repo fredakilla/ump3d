@@ -133,6 +133,8 @@ private:
     void SetRenderAddressU(MAGIC_RENDER_STATE* s);
     /// Texture coord adresse mode.
     void SetRenderAddressV(MAGIC_RENDER_STATE* s);
+    /// Enable/Disable Depth write.
+    void SetRenderZWrite(MAGIC_RENDER_STATE* s);
     /// Get material from index.
     Material* GetRenderMaterial(int matIndex);
 
@@ -196,6 +198,8 @@ private:
     BlendMode STATE_BLENDING;
     /// Render state hash key used to identify states.
     unsigned _stateHashKey;
+
+    bool STATE_ZWRITE;
 };
 
 }

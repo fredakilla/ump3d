@@ -85,7 +85,7 @@ void MagicParticleEffect::RegisterObject(Context* context)
     filters[MAGIC_RENDER_STATE_ADDRESS_U]=true;
     filters[MAGIC_RENDER_STATE_ADDRESS_V]=true;
     //filters[MAGIC_RENDER_STATE_ZENABLE]=true;
-    //filters[MAGIC_RENDER_STATE_ZWRITE]=true;
+    filters[MAGIC_RENDER_STATE_ZWRITE]=true;
     Magic_SetRenderStateFilter(filters, true);
 
     Magic_SetAxis(MAGIC_pXpYpZ);
@@ -477,7 +477,7 @@ Material* MagicParticleEffect::CreateMaterial(MAGIC_MATERIAL* mat)
     Technique* technique = new Technique(context_);
     Pass* pass = technique->CreatePass("alpha");
     pass->SetBlendMode(BLEND_REPLACE);
-    pass->SetDepthWrite(false);
+    pass->SetDepthWrite(true);
     pass->SetVertexShader("MagicParticles/" + String(vsFileName));
     pass->SetPixelShader("MagicParticles/" + String(psFileName));
 

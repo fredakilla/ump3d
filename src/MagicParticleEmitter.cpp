@@ -548,6 +548,9 @@ void MagicParticleEmitter::ResetStates()
     // Blending
     STATE_BLENDING = MAX_BLENDMODES;
 
+    // Depth write on/off
+    STATE_ZWRITE = true;
+
     // State hash key
     _stateHashKey = 0;
 }
@@ -584,9 +587,7 @@ void MagicParticleEmitter::SetRenderBlending(MAGIC_RENDER_STATE* s)
     STATE_BLENDING = URHO_BLEND_MODE[s->value];
 
     // compute hash key using blending value (see : MagicParticleEffect::GetMaterial)
-    _stateHashKey += hash(s->value);
-
-	
+    _stateHashKey += hash(s->value);	
 }
 
 TextureAddressMode URHO_ADDRESS_UV_MODE[] = { ADDRESS_WRAP, ADDRESS_MIRROR, ADDRESS_CLAMP, ADDRESS_BORDER };
@@ -601,6 +602,14 @@ void MagicParticleEmitter::SetRenderAddressU(MAGIC_RENDER_STATE* s)
 
     //_stateHashKey += hash(s->index);
     //_stateHashKey += hash(s->value);
+}
+
+void MagicParticleEmitter::SetRenderZWrite(MAGIC_RENDER_STATE* s)
+{
+    // state = MAGIC_RENDER_STATE_ZWRITE - disable/enable the change of Z-buffer
+    // value = 0 (enable) / 1 (disable).
+
+    STATE_ZWRITE = s->value;
 }
 
 void MagicParticleEmitter::SetRenderAddressV(MAGIC_RENDER_STATE* s)
@@ -630,7 +639,7 @@ MagicParticleEmitter::StateFuncPtr MagicParticleEmitter::_stateFuncPointer[] = {
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ARGUMENT1_ALPHA
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ARGUMENT2_ALPHA
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ZENABLE
-    &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ZWRITE
+    &MagicParticleEmitter::SetRenderZWrite,     // MAGIC_RENDER_STATE_ZWRITE
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ALPHATEST_INIT
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_ALPHATEST
     &MagicParticleEmitter::SetRenderNothing,    // MAGIC_RENDER_STATE_TECHNIQUE_ON
@@ -675,9 +684,14 @@ Material* MagicParticleEmitter::GetRenderMaterial(int matIndex)
             }
         }
 
+        Pass* pass = mat->GetPass(0, "alpha");
+
         // Blending.
         MP_ASSERT(STATE_BLENDING != MAX_BLENDMODES);
-        mat->GetPass(0, "alpha")->SetBlendMode(STATE_BLENDING);
+        pass->SetBlendMode(STATE_BLENDING);
+
+        // Depth write.
+        pass->SetDepthWrite(STATE_ZWRITE);
     }
 
     return mat;
