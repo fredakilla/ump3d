@@ -389,21 +389,7 @@ Material* MagicParticleEffect::GetMaterial(int index, unsigned stateHashkey, boo
     {
         // not found! create a new compatible material.
         // this new material will be used with anothers textures and states from its original.
-
-        String vsFileName = GetCompatibleVertexShader(&mat);
-        String psFileName = GetCompatiblePixelShader(&mat);
-
-        SharedPtr<Material> newMat(new Material(context_));
-
-        Technique* technique = new Technique(context_);
-        Pass* pass = technique->CreatePass("alpha");
-        pass->SetBlendMode( BLEND_REPLACE );
-        pass->SetDepthWrite(false);
-        pass->SetVertexShader("MagicParticles/" + String(vsFileName));
-        pass->SetPixelShader("MagicParticles/" + String(psFileName));
-
-        newMat->SetTechnique(0, technique);
-        newMat->SetCullMode(CULL_CCW);
+        Material* newMat = CreateMaterial(&mat);
 
         // and add it to map for next time we need it.
         _materials[matkey] = newMat;
@@ -471,28 +457,34 @@ void MagicParticleEffect::CreateAllMaterials()
     for (int i=0; i<materialCount; i++)
     {
         Magic_GetMaterial(i, &mat);
-
         _magicMaterials.Push(mat);
 
-        String vsFileName = GetCompatibleVertexShader(&mat);
-        String psFileName = GetCompatiblePixelShader(&mat);
-
-        SharedPtr<Material> material(new Material(context_));
-
-        Technique* technique = new Technique(context_);
-        Pass* pass = technique->CreatePass("alpha");
-        pass->SetBlendMode(BLEND_REPLACE);
-        pass->SetDepthWrite(false);
-        pass->SetVertexShader("MagicParticles/" + String(vsFileName));
-        pass->SetPixelShader("MagicParticles/" + String(psFileName));
-
-        material->SetTechnique(0, technique);
-        material->SetCullMode(CULL_CCW);
+        Material* material = CreateMaterial(&mat);
 
         // compute key from MAGIC_MATERIAL and add material to map
         unsigned key = getMagicMaterialHashKey(&mat);
         _materials[key] = material;
     }
+}
+
+Material* MagicParticleEffect::CreateMaterial(MAGIC_MATERIAL* mat)
+{
+    String vsFileName = GetCompatibleVertexShader(mat);
+    String psFileName = GetCompatiblePixelShader(mat);
+
+    Material* material = new Material(context_);
+
+    Technique* technique = new Technique(context_);
+    Pass* pass = technique->CreatePass("alpha");
+    pass->SetBlendMode(BLEND_REPLACE);
+    pass->SetDepthWrite(false);
+    pass->SetVertexShader("MagicParticles/" + String(vsFileName));
+    pass->SetPixelShader("MagicParticles/" + String(psFileName));
+
+    material->SetTechnique(0, technique);
+    material->SetCullMode(CULL_NONE);
+
+    return material;
 }
 
 //----------------------------------------------------------------------------------------------------

@@ -59,6 +59,8 @@ private:
     String GetCompatibleVertexShader(MAGIC_MATERIAL* material);
     /// Return pixel shader filename of a compatible shader with MAGIC_MATERIAL definition. Create shader if not exists.
     String GetCompatiblePixelShader(MAGIC_MATERIAL* material);
+    /// Create urho material from MAGIC material
+    Material *CreateMaterial(MAGIC_MATERIAL* mat);
 
     /// File data size.
     unsigned _dataSize;
