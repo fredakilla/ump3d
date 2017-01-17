@@ -481,6 +481,8 @@ Material* MagicParticleEffect::CreateMaterial(MAGIC_MATERIAL* mat)
     pass->SetVertexShader("MagicParticles/" + String(vsFileName));
     pass->SetPixelShader("MagicParticles/" + String(psFileName));
 
+    material->SetDepthBias(BiasParameters(0, -0.01, 0));
+
     material->SetTechnique(0, technique);
     material->SetCullMode(CULL_NONE);
 
