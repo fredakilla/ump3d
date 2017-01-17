@@ -8,7 +8,7 @@
 #ifndef MAGIC_PARTICLES_LIBRARY
 #define MAGIC_PARTICLES_LIBRARY
 
-#define MAGIC_API	"3.42"
+#define MAGIC_API	"3.43"
 
 #ifdef __cplusplus
 extern "C" {
