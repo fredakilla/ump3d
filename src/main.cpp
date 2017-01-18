@@ -2,24 +2,88 @@
 #include "MagicParticleEmitter.h"
 #include "MagicParticleEffect.h"
 
+
+/// Custom logic component for moving particles emitters.
+class FxMover : public LogicComponent
+{
+    URHO3D_OBJECT(FxMover, LogicComponent)
+
+public:
+
+    /// Construct.
+    FxMover(Context* context) :
+        LogicComponent(context),
+        moveSpeed_(0.0f),
+        rotationSpeed_(0.0f),
+        life_(0.0f)
+    {
+        // Only the scene update event is needed: unsubscribe from the rest for optimization
+        SetUpdateEventMask(USE_UPDATE);
+    }
+
+    /// Set motion parameters: forward movement speed, rotation speed
+    void SetParameters(float moveSpeed, float rotationSpeed)
+    {
+        moveSpeed_ = moveSpeed;
+        rotationSpeed_ = rotationSpeed;
+    }
+
+    /// Handle scene update. Called by LogicComponent base class.
+    void Update(float timeStep)
+    {
+        node_->Translate(Vector3::FORWARD * moveSpeed_ * timeStep);
+        node_->Roll(rotationSpeed_ * timeStep);
+
+        // kill after max life
+        if(life_ > 3.0f)
+        {
+            node_->Remove();
+        }
+        life_ += timeStep;
+    }
+
+    /// Return forward movement speed.
+    float GetMoveSpeed() const { return moveSpeed_; }
+    /// Return rotation speed.
+    float GetRotationSpeed() const { return rotationSpeed_; }
+
+private:
+    /// Forward movement speed.
+    float moveSpeed_;
+    /// Rotation speed.
+    float rotationSpeed_;
+    /// Current life time.
+    float life_;
+};
+
+
+/// Main application.
 class MyApp : public Application
 {
 public:    
 
+    MagicParticleEffect*            _magicEffects;
+    Node*                           _heroNode;
     SharedPtr<Scene>                _scene;    
     SharedPtr<Text>                 _textInfo;    
     Node*                           _cameraNode;
-    static const int                MAX_ENTITIES = 25;
-    Node*                           _mushroomNodes[MAX_ENTITIES];
+    static const int                MAX_NODES = 100;
+    Node*                           _mushroomNodes[MAX_NODES];
     bool                            _drawDebug;
     int                             _motionDemo;
     bool                            _linkParticlesMovementsToEmitter, _oldLinkState;
+    unsigned                        _currentHeroEmitterIndex;
+    unsigned                        _maxEntities;
+    bool                            _enableMushrooms;
 
     MyApp(Context * context) : Application(context)
     {
         _drawDebug = false;
-        _motionDemo = 0;
+        _motionDemo = 2;
         _linkParticlesMovementsToEmitter = _oldLinkState = false;
+        _currentHeroEmitterIndex = 0;
+        _maxEntities = 0;
+        _enableMushrooms = false;
     }
 
     virtual void Setup()
@@ -31,7 +95,8 @@ public:
         engineParameters_["vsync"]=false;
 
         MagicParticleEffect::RegisterObject(context_);
-        MagicParticleEmitter::RegisterObject(context_);		
+        MagicParticleEmitter::RegisterObject(context_);
+        context_->RegisterFactory<FxMover>();
     }
 
     virtual void Start()
@@ -49,14 +114,7 @@ public:
         zone->SetAmbientColor(Color(0.1f, 0.1f, 0.1f));
         zone->SetFogColor(Color(0.4f, 0.5f, 0.8f));
         zone->SetFogStart(100.0f);
-        zone->SetFogEnd(300.0f);
-
-        // Create a plane with a "stone" material.
-        Node* planeNode = _scene->CreateChild("Plane");
-        planeNode->SetScale(Vector3(50.0f, 1.0f, 50.0f));
-        StaticModel* planeObject = planeNode->CreateComponent<StaticModel>();
-        planeObject->SetModel(cache->GetResource<Model>("Models/Plane.mdl"));
-        planeObject->SetMaterial(cache->GetResource<Material>("Materials/StoneTiled.xml"));      
+        zone->SetFogEnd(300.0f);        
 
         // Create a directional light to the world. Enable cascaded shadows on it
         Node* lightNode = _scene->CreateChild("DirectionalLight");
@@ -76,18 +134,27 @@ public:
 
         // Load a .ptc file (use menu saved as (API)... in Magic Particles 3D to create compatible files)
         // Currently only one file per game instance is supported. Please place all your effects in this file (use merge menu to combine files if needed).
-        MagicParticleEffect* magicEffects = cache->GetResource<MagicParticleEffect>("MagicParticles/particles3d/3d_urho.ptc");
+        _magicEffects = cache->GetResource<MagicParticleEffect>("MagicParticles/particles3d/3d_urho.ptc");
+        _maxEntities = Min(_magicEffects->GetNumEmitters(), MAX_NODES);
 
-        if(magicEffects)
+        unsigned gridX = 0;
+        unsigned gridY = 0;
+        float offset = 8.0f;
+
+        if(_magicEffects)
         {
             // create multiple entities (each entity has a mushroom static mesh + a particle emitter as components)
-            for (unsigned i=0; i<MAX_ENTITIES; ++i)
+            for (unsigned i=0; i<_maxEntities; ++i)
             {
+                float XPos = offset * gridX - 12;
+                float YPos = offset * gridY - 12;
+
                 // create node
                 _mushroomNodes[i] = _scene->CreateChild("Mushroom");
-                _mushroomNodes[i]->SetPosition(Vector3(Random(25.0f) - 12.5f, 0.0f, Random(25.0f) - 12.5f));
+                _mushroomNodes[i]->SetPosition(Vector3(XPos, 0.0f, YPos));
                 _mushroomNodes[i]->SetRotation(Quaternion(0.0f, Random() * 360.0f, 0.0f));
                 _mushroomNodes[i]->SetScale(1.0f);
+                _mushroomNodes[i]->SetEnabled(_enableMushrooms);
 
                 // add a static mesh component
                 StaticModel* mushroomObject = _mushroomNodes[i]->CreateComponent<StaticModel>();
@@ -95,15 +162,44 @@ public:
                 mushroomObject->SetMaterial(cache->GetResource<Material>("Materials/Mushroom.xml"));
                 mushroomObject->SetCastShadows(true);
 
+                unsigned emitterIndex = i;
+                if(emitterIndex >=  _magicEffects->GetNumEmitters())
+                    i = 0;
+
                 // add a magic particle 3D emitter component
                 MagicParticleEmitter* em = _mushroomNodes[i]->CreateComponent<MagicParticleEmitter>();
-                em->SetEffect(magicEffects, 0);             // use effect at index 0
-                em->SetOverrideEmitterRotation(true);       // override any emitter built-in rotation, and prefer urho node based rotation.
-                em->SetParticlesMoveWithEmitter(false);     // new emitted particles will be independents from node movements
-                em->SetParticlesRotateWithEmitter(false);   // new emitted particles will be independents from node rotations
-                em->SetEmitterPosition(Vector3(0,0,0));     // set initial emitter position (offset from node pos)
+                em->SetEffect(_magicEffects, emitterIndex);             // use emitter in file at specified index
+                em->SetOverrideEmitterRotation(true);                   // override any emitter built-in rotation, and prefer urho node based rotation.
+                em->SetParticlesMoveWithEmitter(false);                 // new emitted particles will be independents from node movements
+                em->SetParticlesRotateWithEmitter(false);               // new emitted particles will be independents from node rotations
+                em->SetEmitterPosition(Vector3(0,0,0));                 // set initial emitter position (offset from node pos)
+
+                gridX++;
+                if(gridX > _maxEntities/4)
+                {
+                    gridY++;
+                    gridX = 0;
+                }
+
             }
         }
+
+
+        // Create a plane with a "stone" material.
+        Node* planeNode = _scene->CreateChild("Plane");
+        planeNode->SetScale(Vector3(_maxEntities * offset, 1.0f, _maxEntities * offset));
+        //planeNode->Translate( Vector3( ((_maxEntities-1) * offset) / 2, 0, 0) );
+        StaticModel* planeObject = planeNode->CreateComponent<StaticModel>();
+        planeObject->SetModel(cache->GetResource<Model>("Models/Plane.mdl"));
+        planeObject->SetMaterial(cache->GetResource<Material>("Materials/StoneTiled.xml"));
+
+
+        _heroNode = _scene->CreateChild("Hero");
+        _heroNode->SetDirection(Vector3::RIGHT);
+        StaticModel* heroModel = _heroNode->CreateComponent<StaticModel>();
+        heroModel->SetModel(cache->GetResource<Model>("Models/Kachujin/Kachujin.mdl"));
+        heroModel->SetMaterial(cache->GetResource<Material>("Models/Kachujin/Materials/Kachujin.xml"));
+        heroModel->SetCastShadows(true);
 
         // Create a text for stats.
         _textInfo = new Text(context_);
@@ -125,6 +221,7 @@ public:
         renderer->SetViewport(0,viewport);
 
         SubscribeToEvent(E_KEYDOWN,URHO3D_HANDLER(MyApp,HandleKeyDown));
+        SubscribeToEvent(E_MOUSEBUTTONDOWN,URHO3D_HANDLER(MyApp,HandleMouseButtonDown));
         SubscribeToEvent(E_UPDATE,URHO3D_HANDLER(MyApp,HandleUpdate));
         SubscribeToEvent(E_POSTRENDERUPDATE, URHO3D_HANDLER(MyApp, HandlePostRenderUpdate));
 
@@ -133,59 +230,76 @@ public:
 
     void AnimateScene(float timeStep)
     {
-        float moveSpeed = 7.0f;
-        float rotationSpeed = 100.0f;
-        for (unsigned i = 0; i < MAX_ENTITIES; ++i)
+        if(_enableMushrooms)
         {
-            switch(_motionDemo)
+            const float moveSpeed = 7.0f;
+            const float rotationSpeed = 100.0f;
+            for (unsigned i=0; i<_maxEntities; ++i)
             {
-            case 0:
-                _mushroomNodes[i]->Translate(Vector3::FORWARD * moveSpeed * timeStep);
-                _mushroomNodes[i]->Yaw(rotationSpeed * timeStep);
-                break;
+                switch(_motionDemo)
+                {
+                case 0:
+                    _mushroomNodes[i]->Translate(Vector3::FORWARD * moveSpeed * timeStep);
+                    _mushroomNodes[i]->Yaw(rotationSpeed * timeStep);
+                    break;
 
-            case 1:
-                _mushroomNodes[i]->Roll(rotationSpeed * timeStep);
-                _mushroomNodes[i]->Yaw(rotationSpeed * timeStep * 1);
-                _mushroomNodes[i]->Pitch(rotationSpeed * timeStep * 3);
-                break;
+                case 1:
+                    _mushroomNodes[i]->Roll(rotationSpeed * timeStep);
+                    _mushroomNodes[i]->Yaw(rotationSpeed * timeStep * 1);
+                    _mushroomNodes[i]->Pitch(rotationSpeed * timeStep * 3);
+                    break;
 
-            case 2:
-                _mushroomNodes[i]->SetRotation(Quaternion(0.0f, 0.0f, 0.0f));
-                break;
+                case 2:
+                    _mushroomNodes[i]->SetRotation(Quaternion(0.0f, 0.0f, 0.0f));
+                    break;
+                }
+
+                // link/unlink particles movements to emitter
+                if(_linkParticlesMovementsToEmitter != _oldLinkState)
+                {
+                    MagicParticleEmitter* emitter = _mushroomNodes[i]->GetComponent<MagicParticleEmitter>();
+                    emitter->SetParticlesMoveWithEmitter(_linkParticlesMovementsToEmitter);
+                    emitter->SetParticlesRotateWithEmitter(_linkParticlesMovementsToEmitter);
+                }
             }
 
-            // link/unlink particles movements to emitter
             if(_linkParticlesMovementsToEmitter != _oldLinkState)
-            {
-                MagicParticleEmitter* emitter = _mushroomNodes[i]->GetComponent<MagicParticleEmitter>();
-                emitter->SetParticlesMoveWithEmitter(_linkParticlesMovementsToEmitter);
-                emitter->SetParticlesRotateWithEmitter(_linkParticlesMovementsToEmitter);
                 _oldLinkState = _linkParticlesMovementsToEmitter;
-            }
         }
 
         static float accumulator = 0.0f;
         accumulator += timeStep;
         if(accumulator >= 1.0f)
         {
+            String s;
             accumulator = 0.0f;
 
-            MagicParticleEmitter* emitter = _mushroomNodes[0]->GetComponent<MagicParticleEmitter>();
+            // count particles in scene
+            unsigned particlesCount = 0;
+            PODVector<MagicParticleEmitter*> dest;
+            _scene->GetComponents<MagicParticleEmitter>(dest, true);
+            for(unsigned i=0; i<dest.Size(); ++i)
+            {
+                particlesCount += dest[i]->GetParticlesCount();
+            }
 
-            String s;
-            s = "Effect file : " + emitter->GetEffect()->GetName() + "\n";
-            s += "Emitter : " + emitter->GetEmitterName() +  " (";
-            s += String(emitter->GetIndex() + 1) + "/";
-            s += String(emitter->GetEffect()->GetNumEmitters()) + ")\n";
-            s += "Particles count = " + String(emitter->GetParticlesCount() * MAX_ENTITIES);
-            s += "\nPress 'space bar' for next emitter.";
+            // display infos
+            s = "Effect file : " + _magicEffects->GetName() + "\n";
+            s += "Emitter : (";
+            s += String(_currentHeroEmitterIndex + 1) + "/";
+            s += String(_magicEffects->GetNumEmitters()) + ")\n";
+            s += "Particles count = " + String(particlesCount);
             s += "\nPress 'B' to show bounding boxes";
-            s += "\nPress 'L' to link/unlink particles movements to emitter";
+            s += "\nPress 'E' to show/hide all emitters";
+            s += "\nPress 'R' to link/unlink particles movements to emitter";
             s += "\nPress 'T' to change motion type";
+            s += "\nPress 'Mouse left button' to spawn emitter from hero";
+            s += "\nPress 'Mouse right button' for next emitter";
+            s += "\nPress 'Right/Left' to turn hero";
 
             _textInfo->SetText(s);
         }
+
     }
 
     virtual void Stop()
@@ -197,22 +311,10 @@ public:
         using namespace KeyDown;
         int key=eventData[P_KEY].GetInt();
 
-        if(key==KEY_ESCAPE)
+        if(key == KEY_ESCAPE)
             engine_->Exit();
         else if (key == KEY_F2)
             GetSubsystem<DebugHud>()->ToggleAll();
-        else if (key == KEY_SPACE)
-        {
-            for (unsigned i = 0; i < MAX_ENTITIES; ++i)
-            {
-                MagicParticleEmitter* me = _mushroomNodes[i]->GetComponent<MagicParticleEmitter>();
-
-                unsigned index = me->GetIndex() + 1;
-                if (index >= me->GetEffect()->GetNumEmitters())
-                    index = 0;
-                me->SetIndex(index);
-            }
-        }
         else if(key == KEY_B)
         {
             _drawDebug = !_drawDebug;
@@ -223,9 +325,50 @@ public:
             if(_motionDemo >= 3)
                 _motionDemo = 0;
         }
-        else if(key == KEY_L)
+        else if(key == KEY_R)
         {
             _linkParticlesMovementsToEmitter = !_linkParticlesMovementsToEmitter;
+        }
+        else if(key == KEY_E)
+        {
+            _enableMushrooms = !_enableMushrooms;
+
+            for (unsigned i=0; i<_maxEntities; ++i)
+            {
+                _mushroomNodes[i]->SetEnabled(_enableMushrooms);
+            }
+        }
+    }
+
+    void HandleMouseButtonDown(StringHash eventType,VariantMap& eventData)
+    {
+        using namespace MouseButtonDown;
+        int button = eventData[P_BUTTON].GetInt();
+
+        if(button == MOUSEB_LEFT)
+        {
+            Node* projectile = _scene->CreateChild("Projectile");
+            projectile->SetPosition(_heroNode->GetPosition() + Vector3(0,2,0));
+            projectile->SetDirection(_heroNode->GetDirection());
+
+            // add a magic particle 3D emitter component
+            MagicParticleEmitter* em = projectile->CreateComponent<MagicParticleEmitter>();
+            em->SetEffect(_magicEffects, _currentHeroEmitterIndex);
+            em->SetOverrideEmitterRotation(true);
+            em->SetParticlesMoveWithEmitter(_linkParticlesMovementsToEmitter);
+            em->SetParticlesRotateWithEmitter(_linkParticlesMovementsToEmitter);
+            em->SetEmitterPosition(Vector3(0,0,0));
+
+            // add mover
+            FxMover* mover = projectile->CreateComponent<FxMover>();
+            mover->SetParameters(18, 0);
+        }
+        else if(button == MOUSEB_RIGHT)
+        {
+            // get next emitter for hero
+            _currentHeroEmitterIndex++;
+            if(_currentHeroEmitterIndex > _magicEffects->GetNumEmitters())
+                _currentHeroEmitterIndex = 0;
         }
     }
 
@@ -264,6 +407,17 @@ public:
             _cameraNode->Translate(Vector3::LEFT * MOVE_SPEED * timeStep);
         if (input->GetKeyDown(KEY_D))
             _cameraNode->Translate(Vector3::RIGHT * MOVE_SPEED * timeStep);
+
+        // Rotate hero direction
+        const float heroRotationSpeed = 250 * timeStep;
+        if(input->GetKeyDown(KEY_RIGHT))
+        {
+            _heroNode->Rotate(Quaternion(heroRotationSpeed, Vector3(0,1,0)));
+        }
+        if(input->GetKeyDown(KEY_LEFT))
+        {
+            _heroNode->Rotate(Quaternion(-heroRotationSpeed, Vector3(0,1,0)));
+        }
     }
 
     void HandlePostRenderUpdate(StringHash eventType, VariantMap& eventData)
