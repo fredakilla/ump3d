@@ -169,7 +169,7 @@ void MagicParticleEmitter::OnSetEnabled()
         else
         {
             Stop();
-            UnsubscribeFromEvent(scene, E_UPDATE);
+            UnsubscribeFromEvent(E_UPDATE);
         }
     }
 }
@@ -503,6 +503,7 @@ void MagicParticleEmitter::Stop()
 {
     if (_magicEmitter > 0)
         Magic_Stop(_magicEmitter);
+    memset(&_renderingStart, 0, sizeof(MAGIC_RENDERING_START));
 }
 
 void MagicParticleEmitter::Pause()
