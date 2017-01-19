@@ -496,7 +496,21 @@ void MagicParticleEmitter::SetIndex(int index)
 void MagicParticleEmitter::Restart()
 {
     if (_magicEmitter > 0)
+    {
         Magic_Restart(_magicEmitter);
+
+        // start emitter to interval 1
+        if (Magic_IsInterval1(_magicEmitter))
+        {
+            MAGIC_POSITION emPos;
+            emPos.x = _emitterPos.x + node_->GetWorldPosition().x_ * SCALE_URHO3D_TO_MAGIC;
+            emPos.y = _emitterPos.y + node_->GetWorldPosition().y_ * SCALE_URHO3D_TO_MAGIC;
+            emPos.z = _emitterPos.z + node_->GetWorldPosition().z_ * SCALE_URHO3D_TO_MAGIC;
+            Magic_SetEmitterPosition(_magicEmitter, &emPos);
+
+            Magic_EmitterToInterval1(_magicEmitter, 1.f, 0);
+        }
+    }
 }
 
 void MagicParticleEmitter::Stop()
